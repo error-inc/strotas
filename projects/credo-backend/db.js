@@ -42,6 +42,19 @@ db.serialize(() => {
       timestamp DATETIME DEFAULT CURRENT_TIMESTAMP -- Added: Track funding time
     )
   `);
+
+  // 4. Repayments tracking table
+  db.run(`
+    CREATE TABLE IF NOT EXISTS repayments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      loanId INTEGER,
+      lender TEXT,
+      principal INTEGER,
+      interest REAL,
+      txId TEXT,
+      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 });
 
 module.exports = db;

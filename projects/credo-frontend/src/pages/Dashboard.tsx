@@ -6,7 +6,7 @@ import { auth } from '../../config/firebase';
 import { BACKEND_URL } from '../config/api';
 import { onAuthStateChanged } from 'firebase/auth';
 import { useWallet } from '@txnlab/use-wallet-react';
-import { sendToBlockchain } from '../utils/blockchain';
+import { sendToBlockchain, createRepaymentTxns } from '../utils/blockchain';
 import algosdk from 'algosdk';
 
 interface Loan {
@@ -28,6 +28,13 @@ interface Contribution {
   amount: number;
   txId: string;
   hash: string;
+}
+
+interface RepaymentDisplay {
+  lender: string;
+  principal: number;
+  interest: number;
+  txId: string;
 }
 
 const StatCard: React.FC<{ label: string; value: string | number; icon: React.ReactNode; color: string }> = ({ label, value, icon, color }) => (
@@ -109,6 +116,7 @@ const Dashboard: React.FC = () => {
   // UI state for viewing details
   const [selectedLoan, setSelectedLoan] = useState<number | null>(null);
   const [contributions, setContributions] = useState<Contribution[]>([]);
+  const [repaymentsView, setRepaymentsView] = useState<RepaymentDisplay[]>([]);
   const [fundedByMe, setFundedByMe] = useState(0);
 
   useEffect(() => {
@@ -278,11 +286,17 @@ const Dashboard: React.FC = () => {
     try {
       const res = await fetch(`${BACKEND_URL}/loan/${loanId}/contributions`);
       const data = await res.json();
+      
+      const rRes = await fetch(`${BACKEND_URL}/loan/${loanId}/repayments`);
+      const rData = await rRes.json();
+
       setSelectedLoan(loanId);
       setContributions(data);
+      setRepaymentsView(rData);
     } catch (err) {
       setSelectedLoan(loanId);
       setContributions([]);
+      setRepaymentsView([]);
     }
   };
 
@@ -296,27 +310,81 @@ const Dashboard: React.FC = () => {
       const res = await fetch(`${BACKEND_URL}/loan/${id}/contributions`);
       const contributionsData = await res.json();
 
-      let receiver = wallet;
+      const hash = 'REPAY_' + id.toString() + '_' + Date.now();
+      const interestRate = Number(loan.interest_rate) || 0;
+      let repayments = [];
+      const backendRepayments = [];
+
       if (contributionsData && contributionsData.length > 0) {
-        receiver = contributionsData[0].lender;
+        // Split principal + interest mathematically to each lender
+        repayments = contributionsData.map((c: any) => {
+          const principal = Number(c.amount);
+          
+          let monthsElapsed = 0;
+          if (c.timestamp) {
+            // Calculate months passed since the contribution was funded
+            // Assumes c.timestamp is SQLite UTC CURRENT_TIMESTAMP
+            const fundedDate = new Date(c.timestamp + 'Z');
+            const now = new Date();
+            const daysElapsed = (now.getTime() - fundedDate.getTime()) / (1000 * 60 * 60 * 24);
+            monthsElapsed = Math.floor(daysElapsed / 30);
+          }
+
+          // interestRate is Annual (APR). Convert to Monthly Rate
+          const monthlyRate = interestRate / 12;
+
+          // Only impose interest for full months passed. Paid $<1 month = 0 interest
+          const interest = principal * (monthlyRate / 100) * monthsElapsed;
+          
+          const payout = principal + interest;
+          backendRepayments.push({ lender: c.lender, principal, interest });
+          return { receiver: c.lender, amountAlgos: payout };
+        });
+      } else {
+        // Fallback if no contributions found yet repaid
+        const principal = Number(loan.amount);
+        const interest = 0; // Baseline 0 for fallback
+        const totalPayout = principal + interest;
+        backendRepayments.push({ lender: wallet, principal, interest });
+        repayments = [{ receiver: wallet, amountAlgos: totalPayout }];
       }
 
-      const { txn, hash } = await sendToBlockchain(
-        wallet, receiver, Number(loan.amount),
-        'REPAY_' + id.toString() + '_' + Date.now()
-      );
+      // Max 16 atomic transactions allowed in Algorand grouped tx
+      if (repayments.length > 16) {
+        repayments = repayments.slice(0, 16);
+      }
 
-      const encodedTxn = algosdk.encodeUnsignedTransaction(txn);
-      const signedTxns = await signTransactions([encodedTxn]);
+      const txns = await createRepaymentTxns(wallet, repayments, hash);
+      const encodedTxns = txns.map(txn => algosdk.encodeUnsignedTransaction(txn));
+      const signedTxns = await signTransactions(encodedTxns);
 
       const client = new algosdk.Algodv2('', 'https://testnet-api.algonode.cloud', '');
-      const result = await client.sendRawTransaction(signedTxns[0] as Uint8Array).do();
+      
+      const validTxns = signedTxns.filter((t): t is Uint8Array => t !== null);
+
+      // Combine signed transactions into a single byte array for the network
+      let length = 0;
+      validTxns.forEach(t => length += t.length);
+      const combined = new Uint8Array(length);
+      let offset = 0;
+      validTxns.forEach(t => { combined.set(t, offset); offset += t.length; });
+
+      const result = await client.sendRawTransaction(combined).do();
+      const txId = result.txid || result.txid;
+
+      // Wait for confirmation
+      await algosdk.waitForConfirmation(client, txId, 4);
 
       try {
         await fetch(`${BACKEND_URL}/repay`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ loanId: id, txId: result.txid, hash }),
+          body: JSON.stringify({ 
+            loanId: id, 
+            txId: result.txid, 
+            hash,
+            repayments: backendRepayments
+          }),
         });
       } catch (e) {
         console.warn('Backend save failed', e);
@@ -488,6 +556,31 @@ const Dashboard: React.FC = () => {
                 <p style={{ margin: '4px 0 0', color: 'var(--text-muted)', wordBreak: 'break-all', fontSize: '0.7rem' }}>Tx: {c.txId}</p>
               </div>
             ))}
+
+            {repaymentsView.length > 0 && (
+              <>
+                <h4 style={{ margin: '1.25rem 0 0.75rem', fontSize: '0.9rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                  Repayments ({repaymentsView.length})
+                </h4>
+                {repaymentsView.map((r, i) => (
+                  <div key={i} style={{
+                    borderBottom: i < repaymentsView.length - 1 ? '1px solid var(--glass-border)' : 'none',
+                    paddingBottom: i < repaymentsView.length - 1 ? '0.75rem' : 0,
+                    marginBottom: i < repaymentsView.length - 1 ? '0.75rem' : 0,
+                    fontSize: '0.8rem',
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ color: 'var(--text-muted)', fontFamily: 'monospace' }}>{r.lender?.slice(0, 12)}...</span>
+                      <span style={{ color: '#818cf8', fontWeight: 700 }}>{r.principal + r.interest} ALGO</span>
+                    </div>
+                    <p style={{ margin: '4px 0 0', color: 'var(--text-muted)', fontSize: '0.75rem' }}>
+                      Principal: {r.principal} | Interest: {r.interest}
+                    </p>
+                    <p style={{ margin: '4px 0 0', color: 'var(--text-muted)', wordBreak: 'break-all', fontSize: '0.7rem' }}>Tx: {r.txId}</p>
+                  </div>
+                ))}
+              </>
+            )}
           </div>
         )}
       </div>
