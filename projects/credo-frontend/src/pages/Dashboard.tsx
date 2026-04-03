@@ -301,6 +301,118 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const downloadReceipt = async (loan: Loan) => {
+    try {
+      // Fetch fresh data
+      let contribs: Contribution[] = [];
+      let reps: RepaymentDisplay[] = [];
+      try {
+        const resC = await fetch(`${BACKEND_URL}/loan/${loan.id}/contributions`);
+        contribs = await resC.json();
+        const resR = await fetch(`${BACKEND_URL}/loan/${loan.id}/repayments`);
+        reps = await resR.json();
+      } catch (e) {
+        console.warn('Could not load historic data for receipt');
+      }
+
+      // Generate HTML Blob
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Credo Receipt - Loan #${loan.id}</title>
+          <style>
+             body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; padding: 40px; color: #1e293b; max-width: 800px; margin: 0 auto; }
+             .header { display: flex; justify-content: space-between; border-bottom: 3px solid #38bdf8; padding-bottom: 20px; }
+             .logo { font-size: 28px; font-weight: 800; color: #38bdf8; letter-spacing: -1px; }
+             .title { font-size: 20px; font-weight: bold; color: #0f172a; }
+             .badge { display: inline-block; padding: 4px 10px; border-radius: 100px; font-size: 12px; font-weight: bold; text-transform: uppercase; background: #f1f5f9; color: #475569; }
+             .section { margin-top: 35px; }
+             .section-title { font-size: 14px; font-weight: 700; color: #64748b; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.05em; }
+             .row { display: flex; justify-content: space-between; margin-bottom: 12px; font-size: 14px; }
+             .row-label { color: #64748b; font-weight: 500;}
+             .row-value { font-weight: 600; text-align: right;}
+             .hash { font-family: 'SFMono-Regular', Consolas, monospace; color: #475569; font-size: 12px; word-break: break-all; }
+             table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+             th, td { text-align: left; padding: 12px 10px; border-bottom: 1px solid #f1f5f9; font-size: 13px; }
+             th { color: #64748b; font-weight: 600; }
+             .footer { margin-top: 60px; font-size: 11px; color: #94a3b8; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 20px; }
+          </style>
+        </head>
+        <body onload="window.print();">
+          <div class="header">
+            <div>
+              <div class="logo">CREDO</div>
+              <div style="font-size: 12px; color: #64748b; margin-top: 2px;">Decentralized Credit Protocol</div>
+            </div>
+            <div style="text-align: right">
+              <div class="title">Digital Loan Smart Receipt</div>
+              <div style="font-size: 14px; color: #64748b; margin-top: 5px;">Document Ref: L-${loan.id}-${Date.now().toString().slice(-6)}</div>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Agreement Overview</div>
+            <div class="row"><span class="row-label">Title</span><span class="row-value">${loan.title}</span></div>
+            <div class="row"><span class="row-label">Borrower Wallet</span><span class="row-value hash">${loan.borrower}</span></div>
+            <div class="row"><span class="row-label">Status</span><span class="badge" style="background: ${loan.status==='repaid'?'#dcfce7':loan.status==='funded'?'#e0f2fe':'#f1f5f9'}; color: ${loan.status==='repaid'?'#166534':loan.status==='funded'?'#075985':'#475569'}">${loan.status}</span></div>
+            <div class="row"><span class="row-label">Creation TxId</span><span class="row-value hash">${loan.txId}</span></div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Financial Terms</div>
+            <div class="row"><span class="row-label">Requested Amount</span><span class="row-value">${loan.amount} ALGO</span></div>
+            <div class="row"><span class="row-label">Total Funded</span><span class="row-value" style="color: #16a34a">${loan.funded} ALGO</span></div>
+            <div class="row"><span class="row-label">Interest Rate (APR)</span><span class="row-value">${loan.interest_rate}%</span></div>
+            <div class="row"><span class="row-label">Term Duration</span><span class="row-value">${loan.term_days} Days</span></div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Contributions Ledger (${contribs.length})</div>
+            ${contribs.length === 0 ? '<p style="font-size:13px; color:#94a3b8;">No contributions recorded.</p>' : `
+            <table>
+              <tr><th>Lender Wallet</th><th>Amount</th><th>TxId</th></tr>
+            ${contribs.map(c => `<tr><td class="hash" style="max-width:200px;">${c.lender}</td><td style="font-weight:600; color:#16a34a;">${c.amount} ALGO</td><td class="hash" style="max-width:200px;">${c.txId}</td></tr>`).join('')}
+            </table>`}
+          </div>
+
+          <div class="section">
+            <div class="section-title">Repayments Ledger (${reps.length})</div>
+            ${reps.length === 0 ? '<p style="font-size:13px; color:#94a3b8;">No repayments recorded yet.</p>' : `
+            <table>
+              <tr><th>Lender Paid</th><th>Principal</th><th>Interest</th><th>Total</th><th>TxId</th></tr>
+              ${reps.map(r => `<tr>
+                <td class="hash" style="max-width:180px;">${r.lender}</td>
+                <td>${r.principal}</td>
+                <td>${r.interest}</td>
+                <td style="font-weight:600; color:#4f46e5;">${r.principal + r.interest} ALGO</td>
+                <td class="hash" style="max-width:180px;">${r.txId}</td>
+              </tr>`).join('')}
+            </table>`}
+          </div>
+
+          <div class="footer">
+            <p style="margin:0 0 5px 0;"><strong>VERIFIED ON ALGORAND BLOCKCHAIN</strong></p>
+            <p style="margin:0;">This receipt is a cryptographic reflection of on-chain state generated at ${new Date().toISOString()}</p>
+            <p style="margin:5px 0 0 0; color:#cbd5e1;">Credo Protocol © ${new Date().getFullYear()}</p>
+          </div>
+        </body>
+        </html>
+      `;
+
+      // Open in new tab which will instantly trigger print dialog
+      const blob = new Blob([htmlContent], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      // Timeout to revoke so the new tab can read it
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      
+    } catch (err) {
+      console.error(err);
+      alert('Failed to generate receipt');
+    }
+  };
+
   const repayLoan = async (id: number) => {
     if (!wallet) return;
 
@@ -487,8 +599,8 @@ const Dashboard: React.FC = () => {
             <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 700, color: '#fff' }}>
               {loan.borrower?.slice(0, 2).toUpperCase()}
             </div>
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {loan.borrower?.slice(0, 8)}...{loan.borrower?.slice(-6)}
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'monospace', wordBreak: 'break-all' }}>
+              {loan.borrower}
             </span>
           </div>
           {/* Credit score ring — show for all marketplace cards (evaluate borrower) */}
@@ -533,6 +645,18 @@ const Dashboard: React.FC = () => {
           >
             {selectedLoan === loan.id ? 'Hide Details' : 'View Details'}
           </button>
+          <button
+            className="btn-modern btn-ghost"
+            style={{ padding: '0.5rem 0.75rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(56, 189, 248, 0.1)', color: '#38bdf8', border: '1px solid rgba(56, 189, 248, 0.2)' }}
+            title="Download Digital Receipt"
+            onClick={() => downloadReceipt(loan)}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+          </button>
         </div>
 
         {/* Contributions panel */}
@@ -556,8 +680,8 @@ const Dashboard: React.FC = () => {
                 marginBottom: i < contributions.length - 1 ? '0.75rem' : 0,
                 fontSize: '0.8rem',
               }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ color: 'var(--text-muted)', fontFamily: 'monospace' }}>{c.lender?.slice(0, 12)}...</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexDirection: 'column', gap: '4px' }}>
+                  <span style={{ color: 'var(--text-muted)', fontFamily: 'monospace', wordBreak: 'break-all', fontSize: '0.75rem' }}>{c.lender}</span>
                   <span style={{ color: '#4ade80', fontWeight: 700 }}>{c.amount} ALGO</span>
                 </div>
                 <p style={{ margin: '4px 0 0', color: 'var(--text-muted)', wordBreak: 'break-all', fontSize: '0.7rem' }}>Tx: {c.txId}</p>
@@ -576,8 +700,8 @@ const Dashboard: React.FC = () => {
                     marginBottom: i < repaymentsView.length - 1 ? '0.75rem' : 0,
                     fontSize: '0.8rem',
                   }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ color: 'var(--text-muted)', fontFamily: 'monospace' }}>{r.lender?.slice(0, 12)}...</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexDirection: 'column', gap: '4px' }}>
+                      <span style={{ color: 'var(--text-muted)', fontFamily: 'monospace', wordBreak: 'break-all', fontSize: '0.75rem' }}>{r.lender}</span>
                       <span style={{ color: '#818cf8', fontWeight: 700 }}>{r.principal + r.interest} ALGO</span>
                     </div>
                     <p style={{ margin: '4px 0 0', color: 'var(--text-muted)', fontSize: '0.75rem' }}>
