@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../../config/firebase';
+import { BACKEND_URL } from '../config/api';
 import Navbar from '../components/layout/Navbar';
 import Footer from '../components/layout/Footer';
 
@@ -22,7 +23,7 @@ const Signup: React.FC = () => {
 
       // Sync user with backend
       try {
-        await fetch('http://localhost:5000/user', {
+        await fetch(`${BACKEND_URL}/user`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
