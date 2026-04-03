@@ -39,13 +39,15 @@ const Navbar: React.FC<NavbarProps> = ({
         <Link to="/" className="nav-logo" style={{ textDecoration: 'none' }}>Credo</Link>
         
         <div className="nav-actions">
-          {/* Always show wallet connect button */}
-          <button 
-            className="btn-modern btn-ghost"
-            onClick={handleConnectClick}
-          >
-            {activeAddress ? 'Manage Wallet' : 'Connect Wallet'}
-          </button>
+          {/* Always show wallet connect button if logged in */}
+          {user && (
+            <button 
+              className="btn-modern btn-ghost"
+              onClick={handleConnectClick}
+            >
+              {activeAddress ? 'Manage Wallet' : 'Connect Wallet'}
+            </button>
+          )}
 
           
           {/* Show Log In / Sign Up only when not logged in */}
