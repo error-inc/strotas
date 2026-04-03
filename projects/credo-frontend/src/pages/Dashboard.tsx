@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/layout/Navbar';
 import Footer from '../components/layout/Footer';
 import { auth } from '../../config/firebase';
+import { BACKEND_URL } from '../config/api';
 import { onAuthStateChanged } from 'firebase/auth';
 import { useWallet } from '@txnlab/use-wallet-react';
 import { sendToBlockchain } from '../utils/blockchain';
@@ -62,7 +63,7 @@ const Dashboard: React.FC = () => {
 
   const fetchLoans = async () => {
     try {
-      const res = await fetch('http://localhost:5000/loans');
+      const res = await fetch(`${BACKEND_URL}/loans`);
       const data = await res.json();
       setLoans(data);
     } catch(err) {
@@ -94,7 +95,7 @@ const Dashboard: React.FC = () => {
       console.log('TX ID:', result.txid);
 
       try {
-        await fetch('http://localhost:5000/loan', {
+        await fetch(`${BACKEND_URL}/loan`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -150,7 +151,7 @@ const Dashboard: React.FC = () => {
       console.log('TX ID:', result.txid);
 
       try {
-        await fetch('http://localhost:5000/fund', {
+        await fetch(`${BACKEND_URL}/fund`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -175,7 +176,7 @@ const Dashboard: React.FC = () => {
 
   const viewDetails = async (loanId: number) => {
     try {
-      const res = await fetch(`http://localhost:5000/loan/${loanId}/contributions`);
+      const res = await fetch(`${BACKEND_URL}/loan/${loanId}/contributions`);
       const data = await res.json();
       setSelectedLoan(loanId);
       setContributions(data);
@@ -194,7 +195,7 @@ const Dashboard: React.FC = () => {
 
     try {
       // Fetch contributions to know who to repay
-      const res = await fetch(`http://localhost:5000/loan/${id}/contributions`);
+      const res = await fetch(`${BACKEND_URL}/loan/${id}/contributions`);
       const contributionsData = await res.json();
       
       let receiver = wallet; // default to self if no contributions found
@@ -219,7 +220,7 @@ const Dashboard: React.FC = () => {
       console.log('REPAY TX:', result.txid);
 
       try {
-        await fetch('http://localhost:5000/repay', {
+        await fetch(`${BACKEND_URL}/repay`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
