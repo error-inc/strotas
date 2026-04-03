@@ -77,8 +77,11 @@ const Dashboard: React.FC = () => {
     }
 
     try {
+      // For creating a loan, just record the request on-chain with a 0 ALGO transaction to oneself
       const { txn, hash } = await sendToBlockchain(
         wallet,
+        wallet, // receiver is self
+        0,      // 0 ALGO
         wallet + amount + Date.now()
       );
 
@@ -126,9 +129,15 @@ const Dashboard: React.FC = () => {
     const fundAmount = prompt('Enter amount:');
     if (!fundAmount || !wallet) return;
 
+    const loan = loans.find(l => l.id === id);
+    if (!loan) return;
+
     try {
+      // Lender (wallet) sends ALGO to Borrower (loan.borrower)
       const { txn, hash } = await sendToBlockchain(
         wallet,
+        loan.borrower,
+        Number(fundAmount),
         wallet + id.toString() + fundAmount + Date.now()
       );
 
@@ -180,9 +189,24 @@ const Dashboard: React.FC = () => {
   const repayLoan = async (id: number) => {
     if (!wallet) return;
 
+    const loan = loans.find(l => l.id === id);
+    if (!loan) return;
+
     try {
+      // Fetch contributions to know who to repay
+      const res = await fetch(`http://localhost:5000/loan/${id}/contributions`);
+      const contributionsData = await res.json();
+      
+      let receiver = wallet; // default to self if no contributions found
+      if (contributionsData && contributionsData.length > 0) {
+        receiver = contributionsData[0].lender; // Repay the first lender (simplification for hackathon)
+      }
+
+      // Borrower (wallet) repays ALGO to Lender (receiver)
       const { txn, hash } = await sendToBlockchain(
         wallet,
+        receiver,
+        Number(loan.amount), // Repay the total loan amount
         'REPAY_' + id.toString() + '_' + Date.now()
       );
 
