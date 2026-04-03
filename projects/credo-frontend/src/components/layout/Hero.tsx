@@ -5,14 +5,14 @@ const Hero: React.FC = () => {
   return (
     <section className="hero-section">
       <div className="hero-glow"></div>
-      
+
       <div className="hero-content glass-panel" style={{ padding: '3rem', borderRadius: '24px' }}>
         <h1 className="hero-title">
-          Welcome to <span className="text-gradient">AlgoKit 🙂</span>
+          Welcome to <span className="text-gradient">Credo</span>
         </h1>
-        
+
         <p className="hero-subtitle">
-          This starter has been generated using the official AlgoKit React template. 
+          This starter has been generated using the official AlgoKit React template.
           Experience a sleek, industry-standard interface with seamless blockchain integration.
         </p>
 
@@ -25,7 +25,7 @@ const Hero: React.FC = () => {
           >
             Read Documentation
           </a>
-          
+
           <Link to="/login" className="btn-modern btn-primary">
             Get Started
           </Link>
