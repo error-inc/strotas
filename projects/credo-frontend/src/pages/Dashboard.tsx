@@ -8,6 +8,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { useWallet } from '@txnlab/use-wallet-react';
 import { sendToBlockchain, createRepaymentTxns } from '../utils/blockchain';
 import algosdk from 'algosdk';
+import CreditScoreRing from '../components/ui/CreditScoreRing';
 
 interface Loan {
   id: number;
@@ -480,14 +481,20 @@ const Dashboard: React.FC = () => {
           ))}
         </div>
 
-        {/* Borrower */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 700, color: '#fff' }}>
-            {loan.borrower?.slice(0, 2).toUpperCase()}
+        {/* Borrower + Credit Score */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0, flex: 1 }}>
+            <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 700, color: '#fff' }}>
+              {loan.borrower?.slice(0, 2).toUpperCase()}
+            </div>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {loan.borrower?.slice(0, 8)}...{loan.borrower?.slice(-6)}
+            </span>
           </div>
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
-            {loan.borrower?.slice(0, 8)}...{loan.borrower?.slice(-8)}
-          </span>
+          {/* Credit score ring — show for all marketplace cards (evaluate borrower) */}
+          <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', position: 'relative', zIndex: 10, marginLeft: 'auto' }}>
+            <CreditScoreRing wallet={loan.borrower} size={48} />
+          </div>
         </div>
 
         {/* Progress bar */}
