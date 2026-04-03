@@ -26,3 +26,28 @@ export const sendToBlockchain = async (
 
   return { txn, hash };
 };
+
+export const createRepaymentTxns = async (
+  senderAddress: string,
+  repayments: { receiver: string; amountAlgos: number }[],
+  dataString: string
+) => {
+  const client = new algosdk.Algodv2('', 'https://testnet-api.algonode.cloud', '');
+  const params = await client.getTransactionParams().do();
+  const encoder = new TextEncoder();
+  const note = encoder.encode(dataString);
+
+  const txns = repayments.map(r => algosdk.makePaymentTxnWithSuggestedParamsFromObject({
+    sender: senderAddress,
+    receiver: r.receiver,
+    amount: Math.floor(r.amountAlgos * 1000000),
+    note: note,
+    suggestedParams: params,
+  }));
+
+  if (txns.length > 1 && txns.length <= 16) {
+    algosdk.assignGroupID(txns);
+  }
+
+  return txns;
+};

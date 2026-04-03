@@ -114,6 +114,20 @@ app.get("/loan/:id/contributions", (req, res) => {
   );
 });
 
+// ✅ Get repayments
+app.get("/loan/:id/repayments", (req, res) => {
+  const loanId = req.params.id;
+
+  db.all(
+    "SELECT * FROM repayments WHERE loanId = ?",
+    [loanId],
+    (err, rows) => {
+      if (err) return res.status(500).json(err);
+      res.json(rows);
+    }
+  );
+});
+
 // ✅ Get Loans
 app.get("/loans", (req, res) => {
   db.all("SELECT * FROM loans", [], (err, rows) => {
@@ -123,7 +137,7 @@ app.get("/loans", (req, res) => {
 
 // ✅ Repay Loan
 app.post("/repay", (req, res) => {
-  const { loanId, txId, hash } = req.body;
+  const { loanId, txId, hash, repayments } = req.body;
 
   if (!loanId || !txId || !hash) {
     return res.status(400).json({ error: "Missing fields" });
@@ -133,6 +147,14 @@ app.post("/repay", (req, res) => {
     "UPDATE loans SET status = 'repaid', txId = ?, hash = ? WHERE id = ?",
     [txId, hash, loanId],
     () => {
+      // Loop and insert into repayments table if provided
+      if (repayments && Array.isArray(repayments)) {
+        const stmt = db.prepare("INSERT INTO repayments (loanId, lender, principal, interest, txId) VALUES (?, ?, ?, ?, ?)");
+        for (const rep of repayments) {
+          stmt.run([loanId, rep.lender, rep.principal, rep.interest, txId]);
+        }
+        stmt.finalize();
+      }
       res.json({ success: true });
     }
   );
