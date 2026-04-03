@@ -45,15 +45,43 @@ const Signup: React.FC = () => {
   };
 
   return (
-    <div className="landing-layout min-h-screen flex flex-col">
+    <div className="landing-layout" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       <Navbar />
 
-      <main className="flex-grow flex items-center justify-center relative">
-        <div className="hero-glow"></div>
+      <main style={{
+        flex: 1,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '6rem 1rem 3rem',
+        position: 'relative',
+      }}>
+        {/* Background glow */}
+        <div className="hero-glow" style={{ opacity: 0.6 }}></div>
 
-        <div className="modal-content glass-panel z-10" style={{ position: 'relative', margin: '4rem 0' }}>
-          <h2 className="modal-title">Create an Account</h2>
-          <p className="modal-subtitle">Join the new decentralized frontier.</p>
+        <div className="auth-card glass-panel" style={{ position: 'relative', zIndex: 10 }}>
+          {/* Logo accent */}
+          <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '56px',
+              height: '56px',
+              borderRadius: '16px',
+              background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
+              marginBottom: '1.5rem',
+              boxShadow: '0 8px 24px rgba(56, 189, 248, 0.3)',
+            }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              </svg>
+            </div>
+            <h1 className="modal-title" style={{ margin: 0 }}>Create Account</h1>
+            <p className="modal-subtitle" style={{ marginBottom: 0, marginTop: '0.5rem' }}>
+              Join the decentralized credit frontier
+            </p>
+          </div>
 
           <form onSubmit={handleSubmit}>
             <div className="form-group">
@@ -82,16 +110,39 @@ const Signup: React.FC = () => {
               />
             </div>
 
-            {error && <div className="text-red-400 mb-4 text-sm font-semibold">{error}</div>}
+            {error && (
+              <div style={{
+                background: 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                borderRadius: '8px',
+                padding: '0.75rem 1rem',
+                marginBottom: '1rem',
+                color: '#f87171',
+                fontSize: '0.875rem',
+                fontWeight: 500,
+              }}>
+                {error}
+              </div>
+            )}
 
-            <button type="submit" className="btn-modern btn-primary form-submit" disabled={loading}>
-              {loading ? 'Creating account...' : 'Sign Up'}
+            <button
+              type="submit"
+              className="btn-modern btn-primary form-submit"
+              disabled={loading}
+              style={{ marginTop: '0.5rem' }}
+            >
+              {loading ? (
+                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                  <span style={{ width: '16px', height: '16px', border: '2px solid rgba(255,255,255,0.3)', borderTop: '2px solid white', borderRadius: '50%', animation: 'spin 0.8s linear infinite', display: 'inline-block' }}></span>
+                  Creating account...
+                </span>
+              ) : 'Sign Up'}
             </button>
           </form>
 
           <div className="modal-footer">
             Already have an account?
-            <Link to="/login" className="text-accent-primary ml-1 font-semibold hover:underline" style={{ color: 'var(--accent-primary)', marginLeft: '0.25rem' }}>
+            <Link to="/login" style={{ color: 'var(--accent-primary)', marginLeft: '0.25rem', fontWeight: 600, textDecoration: 'none' }}>
               Log in
             </Link>
           </div>
