@@ -1,18 +1,7 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 
-interface HeroProps {
-  onTransactDemoClick: () => void;
-  onAppCallsDemoClick: () => void;
-  activeAddress?: string;
-  onConnectWalletClick: () => void;
-}
-
-const Hero: React.FC<HeroProps> = ({ 
-  onTransactDemoClick, 
-  onAppCallsDemoClick, 
-  activeAddress,
-  onConnectWalletClick
-}) => {
+const Hero: React.FC = () => {
   return (
     <section className="hero-section">
       <div className="hero-glow"></div>
@@ -37,29 +26,9 @@ const Hero: React.FC<HeroProps> = ({
             Read Documentation
           </a>
           
-          {!activeAddress ? (
-            <button 
-              className="btn-modern btn-primary" 
-              onClick={onConnectWalletClick}
-            >
-              Get Started
-            </button>
-          ) : (
-            <>
-              <button 
-                className="btn-modern btn-primary" 
-                onClick={onTransactDemoClick}
-              >
-                Transactions Demo
-              </button>
-              <button 
-                className="btn-modern btn-primary" 
-                onClick={onAppCallsDemoClick}
-              >
-                Contract Demo
-              </button>
-            </>
-          )}
+          <Link to="/login" className="btn-modern btn-primary">
+            Get Started
+          </Link>
         </div>
       </div>
     </section>
