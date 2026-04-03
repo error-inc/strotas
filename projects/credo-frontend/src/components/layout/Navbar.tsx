@@ -1,53 +1,44 @@
 import React from 'react';
+import { Link, useLocation } from 'react-router-dom';
 
 interface NavbarProps {
-  onLoginClick: () => void;
-  onSignupClick: () => void;
-  onConnectWalletClick: () => void;
+  onConnectWalletClick?: () => void;
   activeAddress?: string;
 }
 
 const Navbar: React.FC<NavbarProps> = ({ 
-  onLoginClick, 
-  onSignupClick, 
   onConnectWalletClick,
   activeAddress 
 }) => {
+  const location = useLocation();
+  const isDashboard = location.pathname === '/dashboard';
+
   return (
     <nav className="fixed-nav">
       <div className="nav-container">
-        <div className="nav-logo">Credo</div>
+        <Link to="/" className="nav-logo" style={{ textDecoration: 'none' }}>Credo</Link>
         
         <div className="nav-actions">
-          {activeAddress ? (
+          {/* Optional: Only show wallet commands if appropriate props are passed in */}
+          {onConnectWalletClick && (
             <button 
               className="btn-modern btn-ghost"
               onClick={onConnectWalletClick}
             >
-              Manage Wallet
-            </button>
-          ) : (
-            <button 
-              className="btn-modern btn-ghost"
-              onClick={onConnectWalletClick}
-            >
-              Connect Wallet
+              {activeAddress ? 'Manage Wallet' : 'Connect Wallet'}
             </button>
           )}
           
-          <button 
-            className="btn-modern btn-ghost" 
-            onClick={onLoginClick}
-            style={{ marginLeft: '1rem' }}
-          >
-            Log In
-          </button>
-          <button 
-            className="btn-modern btn-primary" 
-            onClick={onSignupClick}
-          >
-            Sign Up
-          </button>
+          {!isDashboard && (
+            <>
+              <Link to="/login" className="btn-modern btn-ghost block" style={{ marginLeft: '1rem', textDecoration: 'none', display: 'flex', alignItems: 'center' }}>
+                Log In
+              </Link>
+              <Link to="/signup" className="btn-modern btn-primary block" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center' }}>
+                Sign Up
+              </Link>
+            </>
+          )}
         </div>
       </div>
     </nav>
