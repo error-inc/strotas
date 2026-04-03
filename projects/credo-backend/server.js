@@ -74,6 +74,27 @@ app.post("/fund", (req, res) => {
   );
 });
 
+//Get loans
+app.get("/loan/:id/contributions", (req, res) => {
+  const loanId = req.params.id;
+
+  db.all(
+    "SELECT * FROM contributions WHERE loanId = ?",
+    [loanId],
+    (err, rows) => {
+      if (err) return res.status(500).json(err);
+      res.json(rows);
+    }
+  );
+});
+
+
+//Get Loans
+app.get("/loans", (req, res) => {
+  db.all("SELECT * FROM loans", [], (err, rows) => {
+    res.json(rows);
+  });
+});
 
 
 app.listen(3000, () => {
