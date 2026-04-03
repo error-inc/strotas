@@ -18,7 +18,22 @@ const Login: React.FC = () => {
     setLoading(true);
 
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+
+      // Sync user with backend
+      try {
+        await fetch('http://localhost:5000/user', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            firebaseUid: userCredential.user.uid,
+            email: userCredential.user.email,
+          })
+        });
+      } catch (backendErr) {
+        console.error('Failed to sync user with backend:', backendErr);
+      }
+
       navigate('/dashboard');
     } catch (err: any) {
       setError(err.message || 'Failed to login');
@@ -34,7 +49,7 @@ const Login: React.FC = () => {
       <main className="flex-grow flex items-center justify-center relative">
         {/* Glow effect */}
         <div className="hero-glow"></div>
-        
+
         <div className="modal-content glass-panel z-10" style={{ position: 'relative', margin: '4rem 0' }}>
           <h2 className="modal-title">Welcome Back</h2>
           <p className="modal-subtitle">Enter your credentials to access your account.</p>
@@ -42,24 +57,24 @@ const Login: React.FC = () => {
           <form onSubmit={handleSubmit}>
             <div className="form-group">
               <label className="form-label">Email Address</label>
-              <input 
-                type="email" 
-                className="form-input" 
-                placeholder="name@example.com" 
-                required 
+              <input
+                type="email"
+                className="form-input"
+                placeholder="name@example.com"
+                required
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 disabled={loading}
               />
             </div>
-            
+
             <div className="form-group">
               <label className="form-label">Password</label>
-              <input 
-                type="password" 
-                className="form-input" 
-                placeholder="••••••••" 
-                required 
+              <input
+                type="password"
+                className="form-input"
+                placeholder="••••••••"
+                required
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 disabled={loading}

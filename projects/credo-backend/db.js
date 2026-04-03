@@ -4,6 +4,14 @@ const db = new sqlite3.Database("./database.db");
 
 db.serialize(() => {
   db.run(`
+    CREATE TABLE IF NOT EXISTS users (
+      firebaseUid TEXT PRIMARY KEY,
+      email TEXT,
+      wallet TEXT
+    )
+  `);
+
+  db.run(`
     CREATE TABLE IF NOT EXISTS loans (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       borrower TEXT,
