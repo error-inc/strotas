@@ -2,7 +2,6 @@ const express = require("express");
 const cors = require("cors");
 const db = require("./db");
 
-
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -11,70 +10,97 @@ app.get("/", (req, res) => {
   res.send("Backend running");
 });
 
-//Loan request
-app.post("/loan", (req, res) => {
-    const {wallet, amount, txId, hash} = req.body;
+// ✅ Sync User Info
+app.post("/user", (req, res) => {
+  const { firebaseUid, email, wallet } = req.body;
 
-    if(!wallet, !amount, !txId, !hash)
-    {
-        return res.status(400).json({error: "missing value"});
+  if (!firebaseUid) {
+    return res.status(400).json({ error: "Missing firebaseUid" });
+  }
+
+  // Use INSERT OR REPLACE to handle both signup and login scenarios elegantly
+  db.run(
+    "INSERT OR REPLACE INTO users (firebaseUid, email, wallet) VALUES (?, ?, ?)",
+    [firebaseUid, email || null, wallet || null],
+    function (err) {
+      if (err) return res.status(500).json(err);
+      res.json({ success: true });
     }
-
-    db.execute("Insert into loans(borrower, amount, funded, status, txId, hash) values (?,?,?,?,?,?)",[wallet, amount,0, "Open",txId,hash],
-        function(err){
-            if(err) return res.status(500).json(err);
-            res.json({
-                id: this.lastID,
-                borrower: wallet,
-                amount,
-                funded: 0,
-                status: "open",
-                txId,
-                hash
-            });
-        }
-    )
+  );
 });
 
+// ✅ Create Loan
+app.post("/loan", (req, res) => {
+  const { wallet, title, description, amount, interest_rate, term_days, txId, hash } = req.body;
 
-//Fund request
+  if (!wallet || !title || !amount || !term_days || !txId || !hash) {
+    return res.status(400).json({ error: "Missing fields" });
+  }
+
+  db.run(
+    "INSERT INTO loans (borrower, title, description, amount, interest_rate, term_days, funded, status, txId, hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    [wallet, title, description || "", amount, interest_rate || 0, term_days, 0, "open", txId, hash],
+    function (err) {
+      if (err) return res.status(500).json(err);
+
+      res.json({
+        id: this.lastID,
+        borrower: wallet,
+        title,
+        description,
+        amount,
+        interest_rate,
+        term_days,
+        funded: 0,
+        status: "open",
+        txId,
+        hash
+      });
+    }
+  );
+});
+
+// ✅ Fund Loan
 app.post("/fund", (req, res) => {
-  const { loanId, wallet, amount , txId, hash} = req.body;
+  const { loanId, wallet, amount, txId, hash } = req.body;
 
   if (!loanId || !wallet || !amount || !txId || !hash) {
     return res.status(400).json({ error: "Missing fields" });
   }
 
   db.run(
-    "INSERT INTO contributions (loanId, lender, amount,txId,hash) VALUES (?, ?, ?,?,?)",
-    [loanId, wallet, amount,txId,hash]
-  );
+    "INSERT INTO contributions (loanId, lender, amount, txId, hash) VALUES (?, ?, ?, ?, ?)",
+    [loanId, wallet, amount, txId, hash],
+    function (err) {
+      if (err) return res.status(500).json(err);
 
-  db.get(
-    "SELECT funded, amount FROM loans WHERE id = ?",
-    [loanId],
-    (err, row) => {
-      if (!row) return res.status(404).json({ error: "Loan not found" });
+      db.get(
+        "SELECT funded, amount FROM loans WHERE id = ?",
+        [loanId],
+        (err, row) => {
+          if (!row) return res.status(404).json({ error: "Loan not found" });
 
-      const newFunded = row.funded + amount;
-      const status = newFunded >= row.amount ? "funded" : "open";
+          const newFunded = row.funded + amount;
+          const status = newFunded >= row.amount ? "funded" : "open";
 
-      db.run(
-        "UPDATE loans SET funded = ?, status = ? WHERE id = ?",
-        [newFunded, status, loanId],
-        () => {
-          res.json({
-            loanId,
-            funded: newFunded,
-            status
-          });
+          db.run(
+            "UPDATE loans SET funded = ?, status = ? WHERE id = ?",
+            [newFunded, status, loanId],
+            () => {
+              res.json({
+                loanId,
+                funded: newFunded,
+                status
+              });
+            }
+          );
         }
       );
     }
   );
 });
 
-//Get loans
+// ✅ Get contributions
 app.get("/loan/:id/contributions", (req, res) => {
   const loanId = req.params.id;
 
@@ -88,15 +114,30 @@ app.get("/loan/:id/contributions", (req, res) => {
   );
 });
 
-
-//Get Loans
+// ✅ Get Loans
 app.get("/loans", (req, res) => {
   db.all("SELECT * FROM loans", [], (err, rows) => {
     res.json(rows);
   });
 });
 
+// ✅ Repay Loan
+app.post("/repay", (req, res) => {
+  const { loanId, txId, hash } = req.body;
 
-app.listen(3000, () => {
-  console.log("Server running on port 3000");
+  if (!loanId || !txId || !hash) {
+    return res.status(400).json({ error: "Missing fields" });
+  }
+
+  db.run(
+    "UPDATE loans SET status = 'repaid', txId = ?, hash = ? WHERE id = ?",
+    [txId, hash, loanId],
+    () => {
+      res.json({ success: true });
+    }
+  );
+});
+
+app.listen(5000, () => {
+  console.log("🚀 Server running on port 5000");
 });
