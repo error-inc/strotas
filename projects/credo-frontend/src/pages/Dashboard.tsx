@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import Navbar from '../components/layout/Navbar';
 import Footer from '../components/layout/Footer';
 import { auth } from '../../config/firebase';
@@ -105,16 +105,6 @@ const Dashboard: React.FC = () => {
   const { activeAddress, signTransactions } = useWallet();
   const wallet = activeAddress || '';
 
-  // Form states
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [amount, setAmount] = useState('');
-  const [interestRate, setInterestRate] = useState('');
-  const [termDays, setTermDays] = useState('');
-  const [formLoading, setFormLoading] = useState(false);
-  const [formError, setFormError] = useState('');
-
-  // UI state for viewing details
   const [selectedLoan, setSelectedLoan] = useState<number | null>(null);
   const [contributions, setContributions] = useState<Contribution[]>([]);
   const [repaymentsView, setRepaymentsView] = useState<RepaymentDisplay[]>([]);
@@ -126,7 +116,6 @@ const Dashboard: React.FC = () => {
         navigate('/login');
       } else {
         setLoading(false);
-        // This will now run every time 'wallet' changes
         fetchLoans();
       }
     });
@@ -134,9 +123,8 @@ const Dashboard: React.FC = () => {
   }, [navigate, wallet]);
   useEffect(() => {
     if (!activeAddress) {
-      // Clear personal stats when no wallet is connected
       setFundedByMe(0);
-      setLoans([]); // Optional: Clear loans or keep marketplace visible
+      setLoans([]);
     } else {
       fetchLoans();
     }
@@ -148,7 +136,6 @@ const Dashboard: React.FC = () => {
       const data: Loan[] = await res.json();
       setLoans(data);
 
-      // Compute "Funded by Me" immediately after getting loans
       if (wallet) {
         calculateFundedByMe(data);
       }
@@ -160,7 +147,6 @@ const Dashboard: React.FC = () => {
   const calculateFundedByMe = async (allLoans: Loan[]) => {
     if (!wallet) return;
     try {
-      // We only care about contributions made to OTHER people's loans
       const otherLoans = allLoans.filter((l) => l.borrower !== wallet);
       let totalLent = 0;
 
@@ -169,69 +155,18 @@ const Dashboard: React.FC = () => {
           try {
             const res = await fetch(`${BACKEND_URL}/loan/${loan.id}/contributions`);
             const contribs: Contribution[] = await res.json();
-            // Sum only the contributions where YOU are the lender
             const myContribution = contribs
               .filter((c) => c.lender === wallet)
               .reduce((acc, c) => acc + (Number(c.amount) || 0), 0);
             totalLent += myContribution;
           } catch {
-            // Silently skip if one loan fails to load contributions
+            /* skip */
           }
         })
       );
       setFundedByMe(totalLent);
     } catch (err) {
       console.error("Error calculating personal stats:", err);
-    }
-  };
-
-  const createLoan = async () => {
-    if (!wallet || !amount || !title || !description || !termDays) {
-      setFormError('Please fill in all required fields and connect your wallet.');
-      return;
-    }
-    setFormError('');
-    setFormLoading(true);
-
-    try {
-      const { txn, hash } = await sendToBlockchain(
-        wallet,
-        wallet,
-        0,
-        wallet + amount + Date.now()
-      );
-
-      const encodedTxn = algosdk.encodeUnsignedTransaction(txn);
-      const signedTxns = await signTransactions([encodedTxn]);
-
-      const client = new algosdk.Algodv2('', 'https://testnet-api.algonode.cloud', '');
-      const result = await client.sendRawTransaction(signedTxns[0] as Uint8Array).do();
-
-      try {
-        await fetch(`${BACKEND_URL}/loan`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            wallet, title, description,
-            amount: Number(amount),
-            interest_rate: Number(interestRate) || 0,
-            term_days: Number(termDays),
-            txId: result.txid,
-            hash,
-          }),
-        });
-      } catch (e) {
-        console.warn('Backend save failed', e);
-      }
-
-      setAmount(''); setTitle(''); setDescription(''); setInterestRate(''); setTermDays('');
-      fetchLoans();
-      alert('Loan created with blockchain proof 🚀');
-    } catch (err) {
-      console.error(err);
-      setFormError('Transaction failed or was cancelled.');
-    } finally {
-      setFormLoading(false);
     }
   };
 
@@ -254,12 +189,9 @@ const Dashboard: React.FC = () => {
       const client = new algosdk.Algodv2('', 'https://testnet-api.algonode.cloud', '');
       const result = await client.sendRawTransaction(signedTxns[0] as Uint8Array).do();
 
-      const txId = result.txid || result.txid;
-
-      // --- NEW: Wait for confirmation (approx 3.5 seconds) ---
+      const txId = result.txid;
       await algosdk.waitForConfirmation(client, txId, 4);
 
-      // Now save to backend
       await fetch(`${BACKEND_URL}/fund`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -270,9 +202,8 @@ const Dashboard: React.FC = () => {
         }),
       });
 
-      // Refresh data to update stats on screen
       await fetchLoans();
-      alert('Funding Successful! 🚀');
+      alert('Funding successful.');
     } catch (err: any) {
       console.error(err);
       alert(`Transaction failed: ${err.message || 'Unknown error'}`);
@@ -303,7 +234,6 @@ const Dashboard: React.FC = () => {
 
   const downloadReceipt = async (loan: Loan) => {
     try {
-      // Fetch fresh data
       let contribs: Contribution[] = [];
       let reps: RepaymentDisplay[] = [];
       try {
@@ -315,7 +245,6 @@ const Dashboard: React.FC = () => {
         console.warn('Could not load historic data for receipt');
       }
 
-      // Generate HTML Blob
       const htmlContent = `
         <!DOCTYPE html>
         <html>
@@ -400,11 +329,9 @@ const Dashboard: React.FC = () => {
         </html>
       `;
 
-      // Open in new tab which will instantly trigger print dialog
       const blob = new Blob([htmlContent], { type: 'text/html' });
       const url = URL.createObjectURL(blob);
       window.open(url, '_blank');
-      // Timeout to revoke so the new tab can read it
       setTimeout(() => URL.revokeObjectURL(url), 5000);
       
     } catch (err) {
@@ -429,24 +356,18 @@ const Dashboard: React.FC = () => {
       const backendRepayments = [];
 
       if (contributionsData && contributionsData.length > 0) {
-        // Split principal + interest mathematically to each lender
         repayments = contributionsData.map((c: any) => {
           const principal = Number(c.amount);
-          
+
           let monthsElapsed = 0;
           if (c.timestamp) {
-            // Calculate months passed since the contribution was funded
-            // Assumes c.timestamp is SQLite UTC CURRENT_TIMESTAMP
             const fundedDate = new Date(c.timestamp + 'Z');
             const now = new Date();
             const daysElapsed = (now.getTime() - fundedDate.getTime()) / (1000 * 60 * 60 * 24);
             monthsElapsed = Math.floor(daysElapsed / 30);
           }
 
-          // interestRate is Annual (APR). Convert to Monthly Rate
           const monthlyRate = interestRate / 12;
-
-          // Only impose interest for full months passed. Paid $<1 month = 0 interest
           const interest = principal * (monthlyRate / 100) * monthsElapsed;
           
           const payout = principal + interest;
@@ -454,15 +375,13 @@ const Dashboard: React.FC = () => {
           return { receiver: c.lender, amountAlgos: payout };
         });
       } else {
-        // Fallback if no contributions found yet repaid
         const principal = Number(loan.amount);
-        const interest = 0; // Baseline 0 for fallback
+        const interest = 0;
         const totalPayout = principal + interest;
         backendRepayments.push({ lender: wallet, principal, interest });
         repayments = [{ receiver: wallet, amountAlgos: totalPayout }];
       }
 
-      // Max 16 atomic transactions allowed in Algorand grouped tx
       if (repayments.length > 16) {
         repayments = repayments.slice(0, 16);
       }
@@ -475,7 +394,6 @@ const Dashboard: React.FC = () => {
       
       const validTxns = signedTxns.filter((t): t is Uint8Array => t !== null);
 
-      // Combine signed transactions into a single byte array for the network
       let length = 0;
       validTxns.forEach(t => length += t.length);
       const combined = new Uint8Array(length);
@@ -483,9 +401,7 @@ const Dashboard: React.FC = () => {
       validTxns.forEach(t => { combined.set(t, offset); offset += t.length; });
 
       const result = await client.sendRawTransaction(combined).do();
-      const txId = result.txid || result.txid;
-
-      // Wait for confirmation
+      const txId = result.txid;
       await algosdk.waitForConfirmation(client, txId, 4);
 
       try {
@@ -504,7 +420,7 @@ const Dashboard: React.FC = () => {
       }
 
       fetchLoans();
-      alert('Loan repaid on blockchain 🚀');
+      alert('Loan repaid on-chain.');
     } catch (err) {
       console.error(err);
       alert('Repayment failed');
@@ -536,7 +452,6 @@ const Dashboard: React.FC = () => {
   const myLoans = loans.filter((l) => l.borrower === wallet);
   const otherLoans = loans.filter((l) => l.borrower !== wallet);
 
-  // Funded TO Me: Money you REQUESTED and RECEIVED from others
   const fundedToMe = myLoans.reduce((acc, l) => acc + (Number(l.funded) || 0), 0);
 
   const openLoans = otherLoans.filter(l => l.status === 'open').length;
@@ -561,7 +476,6 @@ const Dashboard: React.FC = () => {
         onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(56, 189, 248, 0.3)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-2px)'; (e.currentTarget as HTMLDivElement).style.boxShadow = '0 8px 32px rgba(0,0,0,0.3)'; }}
         onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--glass-border)'; (e.currentTarget as HTMLDivElement).style.transform = 'none'; (e.currentTarget as HTMLDivElement).style.boxShadow = 'none'; }}
       >
-        {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
           <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.3 }}>
             {loan.title || `Loan #${loan.id}`}
@@ -569,12 +483,10 @@ const Dashboard: React.FC = () => {
           <StatusBadge status={loan.status} />
         </div>
 
-        {/* Description */}
         <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-muted)', lineHeight: 1.6, minHeight: '2.5rem' }}>
           {loan.description || 'No description provided.'}
         </p>
 
-        {/* Stats row */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
           {[
             { label: 'Amount', value: `${loan.amount} ALGO` },
@@ -593,7 +505,6 @@ const Dashboard: React.FC = () => {
           ))}
         </div>
 
-        {/* Borrower + Credit Score */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0, flex: 1 }}>
             <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 700, color: '#fff' }}>
@@ -603,13 +514,11 @@ const Dashboard: React.FC = () => {
               {loan.borrower}
             </span>
           </div>
-          {/* Credit score ring — show for all marketplace cards (evaluate borrower) */}
           <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', position: 'relative', zIndex: 10, marginLeft: 'auto' }}>
             <CreditScoreRing wallet={loan.borrower} size={48} />
           </div>
         </div>
 
-        {/* Progress bar */}
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
             <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Funding Progress</span>
@@ -626,7 +535,6 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Actions */}
         <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
           {loan.status !== 'funded' && loan.status !== 'repaid' && !isMyLoan && (
             <button className="btn-modern btn-primary" style={{ flex: 1, fontSize: '0.85rem', padding: '0.5rem 1rem' }} onClick={() => fundLoan(loan.id)}>
@@ -659,7 +567,6 @@ const Dashboard: React.FC = () => {
           </button>
         </div>
 
-        {/* Contributions panel */}
         {selectedLoan === loan.id && (
           <div style={{
             background: 'rgba(0,0,0,0.25)',
@@ -724,7 +631,6 @@ const Dashboard: React.FC = () => {
 
       <main style={{ flex: 1, paddingTop: '80px' }}>
 
-        {/* Dashboard Header Banner */}
         <div style={{
           background: 'linear-gradient(135deg, rgba(56, 189, 248, 0.08) 0%, rgba(129, 140, 248, 0.08) 100%)',
           borderBottom: '1px solid var(--glass-border)',
@@ -765,7 +671,6 @@ const Dashboard: React.FC = () => {
               )}
             </div>
 
-            {/* Stats row */}
             <div style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
@@ -810,95 +715,48 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Main Content */}
-        <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '2rem', display: 'grid', gridTemplateColumns: 'minmax(300px, 360px) 1fr', gap: '2rem', alignItems: 'start' }}>
-
-          {/* Left: Create Loan Form */}
-          <div style={{ position: 'sticky', top: '100px' }}>
-            <div style={{
-              background: 'var(--glass-bg)',
-              border: '1px solid var(--glass-border)',
-              borderRadius: '20px',
-              padding: '1.75rem',
-              backdropFilter: 'blur(12px)',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
-                <div style={{
-                  width: '38px', height: '38px', borderRadius: '10px',
-                  background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-                  </svg>
-                </div>
-                <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-primary)' }}>Request a Loan</h2>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Title <span style={{ color: '#ef4444' }}>*</span></label>
-                  <input className="form-input" style={{ width: '100%', margin: 0, boxSizing: 'border-box' }} placeholder="e.g. Farm Seeds Investment" value={title} onChange={(e) => setTitle(e.target.value)} type="text" />
-                </div>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Description <span style={{ color: '#ef4444' }}>*</span></label>
-                  <textarea className="form-input" style={{ width: '100%', margin: 0, minHeight: '80px', resize: 'vertical', boxSizing: 'border-box' }} placeholder="Describe your loan purpose..." value={description} onChange={(e) => setDescription(e.target.value)} />
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-                  <div>
-                    <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Amount (ALGO) <span style={{ color: '#ef4444' }}>*</span></label>
-                    <input className="form-input" style={{ width: '100%', margin: 0, boxSizing: 'border-box' }} placeholder="10" value={amount} onChange={(e) => setAmount(e.target.value)} type="number" />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Interest (%)</label>
-                    <input className="form-input" style={{ width: '100%', margin: 0, boxSizing: 'border-box' }} placeholder="5.5" value={interestRate} onChange={(e) => setInterestRate(e.target.value)} type="number" step="0.1" />
-                  </div>
-                </div>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Term (Days) <span style={{ color: '#ef4444' }}>*</span></label>
-                  <input className="form-input" style={{ width: '100%', margin: 0, boxSizing: 'border-box' }} placeholder="30" value={termDays} onChange={(e) => setTermDays(e.target.value)} type="number" />
-                </div>
-
-                {formError && (
-                  <div style={{
-                    background: 'rgba(239, 68, 68, 0.1)',
-                    border: '1px solid rgba(239, 68, 68, 0.3)',
-                    borderRadius: '8px',
-                    padding: '0.75rem',
-                    color: '#f87171',
-                    fontSize: '0.8rem',
-                    fontWeight: 500,
-                  }}>
-                    {formError}
-                  </div>
-                )}
-
-                <button
-                  className="btn-modern btn-primary"
-                  style={{ width: '100%', marginTop: '0.25rem', padding: '0.875rem', fontSize: '0.95rem' }}
-                  onClick={createLoan}
-                  disabled={!wallet || formLoading}
-                >
-                  {formLoading ? (
-                    <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
-                      <span style={{ width: '14px', height: '14px', border: '2px solid rgba(255,255,255,0.3)', borderTop: '2px solid white', borderRadius: '50%', animation: 'spin 0.8s linear infinite', display: 'inline-block' }}></span>
-                      Submitting...
-                    </span>
-                  ) : !wallet ? 'Connect Wallet First' : 'Submit Loan Request'}
-                </button>
-
-                {!wallet && (
-                  <p style={{ margin: 0, textAlign: 'center', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                    Use the "Connect Wallet" button in the navbar
-                  </p>
-                )}
-              </div>
+        <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '2rem' }}>
+          <div
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '1rem',
+              marginBottom: '1.75rem',
+            }}
+          >
+            <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-muted)', maxWidth: '420px', lineHeight: 1.5 }}>
+              Browse open requests or open the form to publish a new loan with on-chain proof.
+            </p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
+              <Link
+                to="/dashboard/create-loan"
+                className="btn-modern btn-primary"
+                style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                Create loan request
+              </Link>
+              <button
+                type="button"
+                className="btn-modern btn-ghost"
+                onClick={() => fetchLoans()}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M23 4v6h-6" />
+                  <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                </svg>
+                Refresh list
+              </button>
             </div>
           </div>
 
-          {/* Right: Loans browser */}
           <div>
-            {/* Tab bar */}
             <div style={{
               display: 'flex',
               gap: 0,
@@ -936,7 +794,6 @@ const Dashboard: React.FC = () => {
               ))}
             </div>
 
-            {/* Loans grid */}
             {displayedLoans.length === 0 ? (
               <div style={{
                 background: 'var(--glass-bg)',
@@ -963,7 +820,7 @@ const Dashboard: React.FC = () => {
                 <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.9rem' }}>
                   {activeTab === 'marketplace'
                     ? 'No loans are available to fund right now. Check back later!'
-                    : 'You haven\'t requested any loans. Use the form to get started!'}
+                    : 'You have not published a loan yet. Use Create loan request to add one.'}
                 </p>
               </div>
             ) : (
