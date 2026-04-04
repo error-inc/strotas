@@ -66,7 +66,6 @@ const Navbar: React.FC<NavbarProps> = ({
         <Link to="/" className="nav-logo" style={{ textDecoration: 'none' }}>Credo</Link>
         
         <div className="nav-actions">
-          {/* Not logged in: show Login / Sign Up */}
           {!user && (
             <>
               <Link to="/login" className="btn-modern btn-ghost" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center' }}>
@@ -78,7 +77,6 @@ const Navbar: React.FC<NavbarProps> = ({
             </>
           )}
 
-          {/* Logged in: wallet button */}
           {user && (
             <button 
               className="btn-modern btn-ghost"
@@ -90,14 +88,12 @@ const Navbar: React.FC<NavbarProps> = ({
             </button>
           )}
 
-          {/* Logged in: Dashboard link if not already there */}
           {user && !isDashboard && (
             <Link to="/dashboard" className="btn-modern btn-primary" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center' }}>
               Dashboard
             </Link>
           )}
 
-          {/* Logged in: User avatar + dropdown */}
           {user && (
             <div className="user-menu-wrapper" style={{ position: 'relative' }}>
               <button
